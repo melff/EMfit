@@ -1,0 +1,172 @@
+as.matrix.array <- function(x,as.rows=1,as.cols=NULL,...){
+
+  if(!length(as.cols)) as.cols <- seq_along(dim(x))[-as.rows]
+  Dar <- dim(x)[as.rows]
+  Dac <- dim(x)[as.cols]
+  nrow <- prod(Dar)
+  ncol <- prod(Dac)
+  x <- aperm(x,c(as.rows,as.cols))
+  dim(x) <- c(nrow,ncol)
+  x
+}
+
+tprod <- function(x,along.x=1,y,along.y=1){
+
+  x <- as.array(x)
+  y <- as.array(y)
+# browser()
+  dx <- dim(x)
+  dy <- dim(y)
+
+  sdx <- seq_along(dx)
+  sdy <- seq_along(dy)
+
+  adx <- dx[along.x]
+  ady <- dy[along.y]
+
+  if(!all(adx==ady)) stop("dimensions do not match")
+
+  asdx <- sdx[along.x]
+  asdy <- sdy[along.y]
+  ksdx <- sdx[-along.x]
+  ksdy <- sdy[-along.y]
+
+  dnx <- dimnames(x)
+  dny <- dimnames(y)
+
+  x <- as.matrix.array(x,as.rows=asdx,as.cols=ksdx)
+  y <- as.matrix.array(y,as.rows=asdy,as.cols=ksdy)
+  dx <- dx[ksdx]
+  dy <- dy[ksdy]
+
+  dnx <- dnx[ksdx]
+  dny <- dny[ksdy]
+
+  dxy <- c(dx,dy)
+  if(length(dnx) || length(dny)){
+
+    if(is.null(dnx)) dnx <- if(length(dx)) rep(list(NULL),length(dx))
+                            else NULL
+    if(is.null(dny)) dny <- if(length(dy)) rep(list(NULL),length(dy))
+                            else NULL
+    dnxy <- c(dnx,dny)
+  } else dnxy <- NULL
+#   browser()
+  structure(crossprod(x,y),
+            dim=dxy,
+            dimnames=dnxy)
+}
+
+
+tprod1 <- function(x,along.x=1){
+
+  x <- as.array(x)
+# browser()
+  dx <- dim(x)
+
+  sdx <- seq_along(dx)
+
+  adx <- dx[along.x]
+
+
+  asdx <- sdx[along.x]
+  ksdx <- sdx[-along.x]
+
+  dnx <- dimnames(x)
+
+  x <- as.matrix.array(x,as.rows=asdx,as.cols=ksdx)
+  dx <- dx[ksdx]
+
+  dnx <- dnx[ksdx]
+
+  dxy <- c(dx,dx)
+  if(length(dnx)){
+    dnxy <- c(dnx,dny)
+  } else dnxy <- NULL
+#   browser()
+  structure(crossprod(x),
+            dim=dxy,
+            dimnames=dnxy)
+}
+
+
+semi.outer.mprod <- function(x,y=x){
+
+  x <- as.matrix(x)
+  y <- as.matrix(y)
+  ncol.x <- ncol(x)
+  ncol.y <- ncol(y)
+  nrows <- nrow(x)
+  stopifnot(nrows==nrow(y))
+
+  x <- array(x,dim=c(nrows,ncol.x,ncol.y))
+  y <- aperm(array(y,dim=c(nrows,ncol.y,ncol.x)),
+             c(1,3,2))
+  x*y
+}
+
+semi.outer <- function(x,y=x,along.x=1,along.y=1){
+
+  x <- as.array(x)
+  y <- as.array(y)
+
+  adx <- dim(x)[along.x]
+  ady <- dim(y)[along.y]
+  if(!all(adx==ady)) stop("dimensions do not match")
+
+  adnx <- dimnames(x)[along.x]
+  adny <- dimnames(y)[along.y]
+
+  dx <- dim(x)[-along.x]
+  dy <- dim(y)[-along.y]
+
+  dnx <- dimnames(x)[-along.x]
+  dny <- dimnames(y)[-along.y]
+
+  x <- as.matrix.array(x,as.rows=along.x)
+  y <- as.matrix.array(y,as.rows=along.y)
+
+  z <- semi.outer.mprod(x,y)
+
+  dxy <- c(adx,dx,dy)
+
+  if(length(dnx) || length(dny)){
+
+    if(is.null(dnx)) dnx <- if(length(dx)) rep(list(NULL),length(dx))
+                            else NULL
+    if(is.null(dny)) dny <- if(length(dy)) rep(list(NULL),length(dy))
+                            else NULL
+    dnxy <- c(dnx,dny)
+  } else dnxy <- NULL
+
+  if(length(adnx) && length(adny)){
+
+    adnxy <- adnx
+    adnxy.null <- sapply(adnxy,is.null)
+    adnxy[adnxy.null] <- adny[adnxy.null]
+  }
+  else if(length(adnx)) adnxy <- adnx
+  else if(length(adny)) adnxy <- adny
+  else if(length(dnxy))
+    adnxy <- rep(list(NULL),length(dxy))
+  else adnxy <- NULL
+
+  dnxy <- c(adnxy,dnxy)
+
+  dim(z) <- dxy
+  dimnames(z) <- dnxy
+  z
+}
+
+dimSums <- function(x,...) UseMethod("dimSums")
+
+dimSums.array <- function(x,dims=1){
+
+  sdx <- seq_along(dim(x))
+  ksdx <- sdx[-dims]
+  dsdx <- sdx[dims]
+
+  rowSums(aperm(x,c(ksdx,dsdx)),
+          dims=length(ksdx))
+}
+

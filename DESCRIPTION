@@ -1,0 +1,14 @@
+Package: EMfit
+Type: Package
+Title: An Infrastructure for Latent Variable Model Fitting using EM Algorithms
+Version: 0.1
+Date: 2013-10-13
+Author: Martin Elff
+Maintainer: Martin Elff <elff@gmx.com>
+Description: The package contains the boilerplate code for estimating latent variable
+   models by maximum marginal likelihood using EM algorithms. The code is generic and thus
+   not optimised for particular models. The package supports fitting latent class or finite
+   mixture models using simple EM algorithms and (to some degree) latent trait or continous mixture models
+   using Monte Carlo EM algorithms. Only importance sampling is supported for MCEM. However,
+   it implements automatic sample size adjustment using the approach of Caffo Jank and Jones.
+License: GPL
