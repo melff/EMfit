@@ -16,7 +16,7 @@ function(psi.start,
    
    psi <- psi.start
 
-   f.phi.data <- expd_data(psi,...)
+   f.phi.data <- expd_data(psi,prev.data=NULL,...)
    f.data <- f.phi.data$f.data
    phi.data <- f.phi.data$phi.data
    i <- f.phi.data$i
@@ -29,6 +29,7 @@ function(psi.start,
    LL.ih <- exp(ll.ih)
    LL.i <- rowsum(LL.ih,i)
    PPr.ih <- LL.ih/LL.i[i]
+   
    Q <- PPr.ih*ll.ih
    Q[PPr.ih==0]<-0
    Q <- sum(Q)
@@ -128,7 +129,10 @@ function(psi.start,
             cat(" - EM converged")
          }
       }
-      
+      f.phi.data <- expd_data(psi,prev.data=f.phi.data,...)
+      f.data <- f.phi.data$f.data
+      phi.data <- f.phi.data$phi.data
+      i <- f.phi.data$i
    }
    
    if(!Information && maxiter.EM==maxiter)
@@ -188,7 +192,10 @@ function(psi.start,
          }
          break
       }
-
+      f.phi.data <- expd_data(psi,prev.data=f.phi.data,...)
+      f.data <- f.phi.data$f.data
+      phi.data <- f.phi.data$phi.data
+      i <- f.phi.data$i
    }
    
    list(psi      = psi,
