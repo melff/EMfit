@@ -3,6 +3,8 @@ function(psi.start,
                   log_f,   
                   log_phi,
                   expd_data,
+                  constraints=NULL,
+                  enforce.constraints=FALSE,
                   ...,     # further arguments given to the functions
                   eps=1e-7,
                   maxiter=200,
@@ -14,8 +16,27 @@ function(psi.start,
                   ){
    
    
-   psi <- psi.start
-
+  if(length(constraints)){
+     
+     C <- constraints$lhs
+     if(!length(C)) stop("no left-hand side for constraints given")
+     d <- constraints$rhs
+     if(!length(d)) d <- numeric(nrow(C))
+     
+     rstr <- restrictor(C,d)
+     constraints.check <- sum(abs(C%*%psi.start-d))
+     if(constraints.check>0) {
+       if(enforce.constraints){
+         
+         warning("starting values do not meet constraints -- enforcing them")
+         psi.start <- rstr$k + rstr$M%*%psi.start
+       }
+       else stop("starting values do not meet constraints")
+     }
+     QMat <- rstr$Q
+   }
+  psi <- psi.start
+  
    f.phi.data <- expd_data(psi,prev.data=NULL,...)
    f.data <- f.phi.data$f.data
    phi.data <- f.phi.data$phi.data
@@ -71,7 +92,12 @@ function(psi.start,
          gradient <- crossprod(Jcb.ih,PPr.ih)
          cplInfo <- colSums(PPr.ih*cplInfo.ih)
          
-         psi <- c(psi + solve(cplInfo,gradient))
+         if(length(constraints)){
+           psi <- c(psi + Qmat%*%solve(crossprod(Qmat,cplInfo)%*%Qmat,
+                                       crossprod(Qmat,gradient))
+         }
+         else
+           psi <- c(psi + solve(cplInfo,gradient))
 
          log_f.ih <- log_f(f.data,psi,...)
          log_phi.ih <- log_phi(phi.data,psi,...)
@@ -162,7 +188,12 @@ function(psi.start,
       
       obsInfo <- cplInfo - missInfo
          
-      psi <- c(psi + solve(obsInfo,gradient))
+      if(length(constraints)){
+        psi <- c(psi + Qmat%*%solve(crossprod(Qmat,obsInfo)%*%Qmat,
+                                    crossprod(Qmat,gradient))
+      }
+      else
+        psi <- c(psi + solve(obsInfo,gradient))
       
       log_f.ih <- log_f(f.data,psi,...)
       log_phi.ih <- log_phi(phi.data,psi,...)
