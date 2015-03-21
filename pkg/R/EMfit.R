@@ -35,6 +35,25 @@ function(psi.start,
      }
      QMat <- rstr$Q
    }
+  if(length(constraints)){
+     
+     C <- constraints$lhs
+     if(!length(C)) stop("no left-hand side for constraints given")
+     d <- constraints$rhs
+     if(!length(d)) d <- numeric(nrow(C))
+     
+     rstr <- restrictor(C,d)
+     constraints.check <- sum(abs(C%*%psi.start-d))
+     if(constraints.check>0) {
+       if(enforce.constraints){
+         
+         warning("starting values do not meet constraints -- enforcing them")
+         psi.start <- rstr$k + rstr$M%*%psi.start
+       }
+       else stop("starting values do not meet constraints")
+     }
+     QMat <- rstr$Q
+   }
   psi <- psi.start
   
   f.phi.data <- expd_data(psi,prev.data=NULL,...)
@@ -193,7 +212,7 @@ function(psi.start,
                                   crossprod(QMat,gradient)))
     }
     else
-      psi <- c(psi + solve(obsInfo,gradient))
+        psi <- c(psi + solve(obsInfo,gradient))
     
     log_f.ih <- log_f(f.data,psi,...)
     log_phi.ih <- log_phi(phi.data,psi,...)
