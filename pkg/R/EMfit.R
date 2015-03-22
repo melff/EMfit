@@ -275,7 +275,7 @@ function(psi.start,
     phi.data <- f.phi.data$phi.data
     i <- f.phi.data$i
   }
-  
+  psi.trace <- psi.trace[,1:iter,drop=FALSE]
   list(psi      = psi,
        logLik   = logLik,
        gradient = gradient,
