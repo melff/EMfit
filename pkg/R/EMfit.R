@@ -15,26 +15,7 @@ function(psi.start,
                   verbose.inner=FALSE
                   ){
    
-  
-  if(length(constraints)){
-     
-     C <- constraints$lhs
-     if(!length(C)) stop("no left-hand side for constraints given")
-     d <- constraints$rhs
-     if(!length(d)) d <- numeric(nrow(C))
-     
-     rstr <- restrictor(C,d)
-     constraints.check <- sum(abs(C%*%psi.start-d))
-     if(constraints.check>0) {
-       if(enforce.constraints){
-         
-         warning("starting values do not meet constraints -- enforcing them")
-         psi.start <- rstr$k + rstr$M%*%psi.start
-       }
-       else stop("starting values do not meet constraints")
-     }
-     QMat <- rstr$Q
-   }
+  QMat <- NULL
   if(length(constraints)){
      
      C <- constraints$lhs
@@ -214,7 +195,7 @@ function(psi.start,
       obsInfo.eigen <- eigen(obsInfo)
     last.psi <- psi
     if(any(obsInfo.eigen$values <= 0)) {
-      print(obsInfo.eigen$values)
+      #print(obsInfo.eigen$values)
       warning("observed Information matrix not positive definite -- using complete-data Information")
       if(length(constraints)){
         psi <- c(psi + QMat%*%solve(crossprod(QMat,cplInfo)%*%QMat,
@@ -283,7 +264,8 @@ function(psi.start,
        missInfo  = missInfo,
        obsInfo  = obsInfo,
        converged = if(Information) EM.converged else NR.converged,
-       psi.trace=psi.trace
+       psi.trace=psi.trace,
+       QMat = QMat
   )
 }
   
