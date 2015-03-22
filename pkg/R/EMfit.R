@@ -208,11 +208,30 @@ function(psi.start,
     obsInfo <- cplInfo - missInfo
     
     if(length(constraints)){
-      psi <- c(psi + QMat%*%solve(crossprod(QMat,obsInfo)%*%QMat,
-                                  crossprod(QMat,gradient)))
+      obsInfo.eigen <- eigen(crossprod(QMat,obsInfo)%*%QMat)
     }
     else
+      obsInfo.eigen <- eigen(obsInfo)
+    last.psi <- psi
+    if(any(obsInfo.eigen$values <= 0)) {
+      print(obsInfo.eigen$values)
+      warning("observed Information matrix not positive definite -- using complete-data Information")
+      if(length(constraints)){
+        psi <- c(psi + QMat%*%solve(crossprod(QMat,cplInfo)%*%QMat,
+                                    crossprod(QMat,gradient)))
+      }
+      else
+        psi <- c(psi + solve(cplInfo,gradient))
+    }
+    else 
+      {
+      if(length(constraints)){
+        psi <- c(psi + QMat%*%solve(crossprod(QMat,obsInfo)%*%QMat,
+                                    crossprod(QMat,gradient)))
+      }
+      else
         psi <- c(psi + solve(obsInfo,gradient))
+    }
     
     log_f.ih <- log_f(f.data,psi,...)
     log_phi.ih <- log_phi(phi.data,psi,...)
@@ -227,19 +246,28 @@ function(psi.start,
     logLik <- sum(log(LL.i))
     
     psi.trace[,iter] <- psi
-    crit <- abs((logLik - last.logLik)/last.logLik)
+    crit <- (logLik - last.logLik)/abs(last.logLik)
     if(verbose){
       #cat(" - psi:",psi)
       cat(" -\tLog-likelihood: ",logLik," criterion: ",crit,sep="")
     }
-    
-    if(crit < eps){
+    if(!is.finite(crit)){
+      warning("Non-finite log-likelihood - stepping back and bailing out ...")
+      psi <- last.psi
+      break
+    }
+    if(abs(crit) < eps){
       
       NR.converged <- TRUE
       if(verbose){
         
         cat("\n... converged")
       }
+      break
+    } 
+    else if(crit < 0){
+      warning("Cannot increase likelihood - stepping back and bailing out ...")
+      psi <- last.psi
       break
     }
     f.phi.data <- expd_data(psi,prev.data=f.phi.data,...)
