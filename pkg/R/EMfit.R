@@ -12,7 +12,8 @@ function(psi.start,
                   maxiter.inner=maxiter,
                   Information=TRUE,
                   verbose=TRUE,
-                  verbose.inner=FALSE
+                  verbose.inner=FALSE,
+                  show.psi=FALSE
                   ){
    
   QMat <- NULL
@@ -38,9 +39,11 @@ function(psi.start,
   psi <- psi.start
   
   f.phi.data <- expd_data(psi,prev.data=NULL,...)
+  weights <- f.phi.data$weights # These should be frequency weights or such
   f.data <- f.phi.data$f.data
   phi.data <- f.phi.data$phi.data
   i <- f.phi.data$i
+  weights.i <- weights[!duplicated(i)]
   
   log_f.ih <- log_f(f.data,psi,...) 
   log_phi.ih <- log_phi(phi.data,psi,...) 
@@ -51,10 +54,14 @@ function(psi.start,
   LL.i <- rowsum(LL.ih,i)
   PPr.ih <- LL.ih/LL.i[i]
   
-  Q <- PPr.ih*ll.ih
+  if(!length(weights)) weights <- rep(1,length(PPr.ih))
+  Q <- weights*PPr.ih*ll.ih
   Q[PPr.ih==0]<-0
   Q <- sum(Q)
-  logLik <- sum(log(LL.i))
+  logLik <- sum(weights.i*log(LL.i))
+  if(verbose){
+    cat("\nInitial log-likelihood:",logLik)
+  }
   
   psi.trace <- matrix(nrow=length(psi),ncol=maxiter+1)
   psi.trace[,1] <- psi
@@ -72,7 +79,7 @@ function(psi.start,
     last.ll.ih  <- ll.ih
     last.PPr.ih <- PPr.ih
     last.logLik  <- logLik
-    
+    last.psi <- psi
     converged.inner <- FALSE
     for(iiter in 1:maxiter.inner){
       
@@ -89,8 +96,8 @@ function(psi.start,
       Jcb.ih <- Jcb.f.ih + Jcb.phi.ih
       cplInfo.ih <- cplInfo.f.ih + cplInfo.phi.ih
       
-      gradient <- crossprod(Jcb.ih,PPr.ih)
-      cplInfo <- colSums(PPr.ih*cplInfo.ih)
+      gradient <- crossprod(Jcb.ih,weights*PPr.ih)
+      cplInfo <- colSums(weights*PPr.ih*cplInfo.ih)
       
       if(length(constraints)){
         psi <- c(psi + QMat%*%solve(crossprod(QMat,cplInfo)%*%QMat,
@@ -103,19 +110,24 @@ function(psi.start,
       log_phi.ih <- log_phi(phi.data,psi,...)
       ll.ih <- log_f.ih + log_phi.ih
       
-      Q <- PPr.ih*ll.ih
+      Q <- weights*PPr.ih*ll.ih
       Q[PPr.ih==0]<-0
       Q <- sum(Q)
       crit.inner <- abs((Q-last.Q)/last.Q)
       
       if(verbose.inner)
       {
-        #cat(" - psi:",psi)
+        if(show.psi)cat(" - psi:",psi)
         #cat(" - update:",psi.upd)
         #cat(" - Q:",Q)
         cat(" - criterion: ",crit.inner,sep="")
       }
-      
+      if(!is.finite(crit.inner)){
+        #warning("Non-finite Q-function - stepping back and bailing out ...")
+        psi <- last.psi
+        logLik <- last.logLik
+        break
+      }
       if(crit.inner < eps) {
         
         if(verbose.inner)
@@ -129,31 +141,34 @@ function(psi.start,
     LL.ih <- exp(ll.ih)
     LL.i <- rowsum(LL.ih,i)
     PPr.ih <- LL.ih/LL.i[i]
-    Q <- PPr.ih*ll.ih
+    Q <- weights*PPr.ih*ll.ih
     Q[PPr.ih==0]<-0
     Q <- sum(Q)
-    logLik <- sum(log(LL.i))
+    stopifnot(length(weights.i)==length(LL.i))
+    logLik <- sum(weights.i*log(LL.i))
     logLik.trace[iter] <- logLik
     
     crit.outer <- abs((logLik - last.logLik)/last.logLik)
-    
+    if(!is.finite(crit.outer)){
+      warning("Non-finite Q-function - stepping back and bailing out ...")
+      psi <- last.psi
+      logLik <- last.logLik
+      break
+    }
     if(verbose){
       
-      if(verbose.inner)
-        cat("\nIteration ",iter,": ",sep="")
-      else
-        cat(" -\t")
-      cat("Log-likelihood: ",logLik," criterion: ",crit.outer,sep="")
+      cat("\n\tLog-likelihood: ",logLik," criterion: ",crit.outer,sep="")
     }
     
     if(crit.outer < eps){
       
-      EM.converged <- TRUE
-      break
-      if(verbose){
+      EM.converged <- converged.inner
+      
+      if(verbose && converged.inner){
         
         cat(" - EM converged")
       }
+      break
     }
     f.phi.data <- expd_data(psi,prev.data=f.phi.data,...)
     f.data <- f.phi.data$f.data
@@ -180,11 +195,11 @@ function(psi.start,
     Jcb.ih <- attr(log_f.ih,"Jacobian") + attr(log_phi.ih,"Jacobian")
     cplInfo.ih <- attr(log_f.ih,"cplInfo") + attr(log_phi.ih,"cplInfo")
     
-    gradient <- crossprod(Jcb.ih,PPr.ih)
-    cplInfo <- colSums(PPr.ih*cplInfo.ih)
+    gradient <- crossprod(Jcb.ih,weights*PPr.ih)
+    cplInfo <- colSums(weights*PPr.ih*cplInfo.ih)
     
     grad.i <- rowsum(PPr.ih*Jcb.ih,i)
-    missInfo <- crossprod(Jcb.ih,PPr.ih*Jcb.ih) - crossprod(grad.i)
+    missInfo <- crossprod(Jcb.ih,weights*PPr.ih*Jcb.ih) - crossprod(grad.i,weights.i*grad.i)
     
     obsInfo <- cplInfo - missInfo
     
@@ -221,20 +236,22 @@ function(psi.start,
     LL.ih <- exp(ll.ih)
     LL.i <- rowsum(LL.ih,i)
     PPr.ih <- LL.ih/LL.i[i]
-    Q <- PPr.ih*ll.ih
+    Q <- weights*PPr.ih*ll.ih
     Q[PPr.ih==0]<-0
     Q <- sum(Q)
-    logLik <- sum(log(LL.i))
+    logLik <- sum(weights.i*log(LL.i))
+    logLik.trace[iter] <- logLik
     
     psi.trace[,iter] <- psi
     crit <- (logLik - last.logLik)/abs(last.logLik)
     if(verbose){
-      #cat(" - psi:",psi)
+      if(show.psi)cat(" - psi:",psi)
       cat(" -\tLog-likelihood: ",logLik," criterion: ",crit,sep="")
     }
     if(!is.finite(crit)){
       warning("Non-finite log-likelihood - stepping back and bailing out ...")
       psi <- last.psi
+      logLik <- last.logLik
       break
     }
     if(abs(crit) < eps){
@@ -249,6 +266,7 @@ function(psi.start,
     else if(crit < 0){
       warning("Cannot increase likelihood - stepping back and bailing out ...")
       psi <- last.psi
+      logLik <- last.logLik
       break
     }
     f.phi.data <- expd_data(psi,prev.data=f.phi.data,...)
@@ -257,6 +275,8 @@ function(psi.start,
     i <- f.phi.data$i
   }
   psi.trace <- psi.trace[,1:iter,drop=FALSE]
+  logLik.trace <- logLik.trace[1:iter]
+  
   list(psi      = psi,
        logLik   = logLik,
        gradient = gradient,
@@ -264,7 +284,7 @@ function(psi.start,
        missInfo  = missInfo,
        obsInfo  = obsInfo,
        converged = if(Information) EM.converged else NR.converged,
-       psi.trace=psi.trace,
+       psi.trace=psi.trace,logLik.trace=logLik.trace,
        QMat = QMat
   )
 }
