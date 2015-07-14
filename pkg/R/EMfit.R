@@ -3,9 +3,26 @@
 #' @description \code{EMfit} provides the boilerplate for EM algorithms and EM-NR accelerated EM algorithms (also known as the Louis-method of acceleration)
 #'
 #' @param psi.start A numeric vector with starting values
-#' @param ll_cpl A function that computes the complete-data log-likelihood
-#' @param mk_cpl_data A function that creates the 'complete data' from the 'observed' data
-#' @param \dots Further arguments passed to \code{ll_cpl} and \code{mk_cpl_data}
+#' @param a vector of observation weights
+#' @param mk_cpl_data A function that creates the 'complete data' from the 'observed' data. Its return value
+#'        can be anything that can be used by the other functions given as arguments.
+#' @param ll_cpl A function that computes the complete-data contributions to the log-likelihood.
+#'        It should at least accept the arguments \code{psi}, the parameter vector, and 
+#'        \code{cpl_data}, the complete-data structure.
+#'        It should return the complete-data contributions to the log-likelihood, with an attributed
+#'        named "i" that indicates unconditionally independent groups of observations.
+#' @param Mstep A function that conducts the M-step. It should accept the parameter vector as
+#'        first argument, the complete-data structure as second argument, a vector \code{weights},
+#'        and should accept anything that is passed via \dots
+#' @param completeInfo A function that computes the 'complete-data' information matrix
+#'        It should at least accept the arguments \code{psi}, the parameter vector, 
+#'        \code{cpl_data}, the complete-data structure, and \code{weights}, which are 
+#'        weights determined e.g. by posterior probabilities and a-priori weights.
+#' @param Jacobian A function that computes the Jacobian of the log-likelihood function. 
+#'        It should return a matrix with the same number of rows as the length of the result
+#'        of \code{ll_cpl} and the same number of colums as elements of \code{psi}
+#'        and should have an attribute named "i" that indicates unconditionally independent groups of observations.
+#' @param \dots Further arguments passed to \code{ll_cpl}, \code{mk_cpl_data}, etc.
 #' @param eps Numeric; a criterion for convergence
 #' @param maxiter Maximal number of iterations
 #' @param maxiter.EM Maximal number of iterations after which the algorithm should switch to Newton-Raphson steps
@@ -26,52 +43,19 @@
 #'  \item{psi.trace}{A matrix which contains the parameter values for each iteration}
 #'  \item{logLik.trace}{A vector with the log-likelihood values of each iteration}
 #'   
-#' @details 
-#'    The argument \code{ll_cpl} is expected to be a function that returns a vector of 
-#'    log-likelihood values for each observation that is conditionally independent given the
-#'    unobserved data. It is expected to have two mandatory arguments
-#'    \itemize{
-#'      \item \code{"psi"} the current value of the parameter vector,
-#'      \item \code{"cpl_data"} a data structure containing the complete data, returned by \code{mk_cpl_data} (see below).
-#'    }
-#'    
-#'    Th return value is expected to have the following mandatory
-#'    attributes:
-#'    \itemize{
-#'      \item \code{"Jacobian"} the Jacobian matrix, i.e. the matrix of first partial derivatives
-#'      of the vector of log-likelihood values for the parameter vector,
-#'      \item \code{"cplInfo"} the complete-data information matrix (computed over all complete-data observations).
-#'    }
-#'    For computational efficiency, the return value may also have the following 
-#'    attributes
-#'    \itemize{
-#'      \item \code{"gradient"} the gradient of the complete-data log-likelihood function, computed over all
-#'      complete-data observations,
-#'      \item \code{"misInfo"} the missing-information matrix.
-#'    }
-#'    These attributes are optional. The gradient and missing-information matrix will be computed within
-#'    \code{EMfit}, if these attributes are not attached to the return value of \code{ll_cpl}.
-#'    
-#'    The argument \code{mk_cpl_data} may return any structure that \code{ll_cpl} understands (that is,
-#'    it depends on the coder of a particular implementation of a model using \code{EMfit}. The return value
-#'    will usually be a list, but it may any structure that permits the \code{$}-operator
-#'    (e.g. an \code{\link{environment}}). Two components, however,
-#'    are mandatory:
-#'    \itemize{
-#'      \item \code{"i"} an integer that identifies groups of complete-data observations 
-#'                     that correspond to a single observed-data observation.
-#'      \item \code{"weights.i"} a numeric vector of weights, usually frequency weights.
-#'    }
 EMfit <- function(
   psi.start,
-  ll_cpl,
+  weights,
   mk_cpl_data,
+  ll_cpl,
+  completeInfo,
+  Jacobian,
   ...,     # further arguments given to the functions
+  Mstep=Mstep.default,
   eps=1e-7,
   maxiter=200,
   maxiter.EM=maxiter,
   maxiter.inner=25,
-  Mstep=Mstep.default,
   Information=TRUE,
   verbose=TRUE,
   verbose.inner=FALSE,
@@ -81,15 +65,14 @@ EMfit <- function(
   psi <- psi.start
 
   cpl_data <- mk_cpl_data(psi,prev.data=NULL,...)
-  weights.i <- cpl_data$weights.i # These should be frequency weights or such for each set of indiv obs
-  i <- cpl_data$i  # indicates independent observations
 
   ll.ih <- ll_cpl(psi,cpl_data,...)
-
+  i <- attr(ll_ih,"i")
+  
   LL.ih <- exp(ll.ih)
   LL.i <- rowsum(LL.ih,i)
   PPr.ih <- LL.ih/LL.i[i]
-  logLik <- sum(weights.i*log(LL.i))
+  logLik <- sum(weights*log(LL.i))
   if(verbose){
     cat("\nInitial log-likelihood:",logLik)
   }
@@ -113,16 +96,22 @@ EMfit <- function(
     converged.inner <- FALSE
 
     ### M-step:
-    psi <- Mstep(psi,cpl_data,wPPr,ll_cpl=ll_cpl,...,
+    if(missing(Mstep))
+      psi <- Mstep.default(psi,cpl_data,wPPr,ll_cpl=ll_cpl,
+                           Jacobian=Jacobian,
+                           completeInfo=completeInfo,...,
                            maxiter=maxiter.innter,eps=eps,
                            verbose=verbose.inner)
+    else
+      psi <- Mstep(psi,cpl_data,weights=wPPr,...,
+                   maxiter=maxiter.inner,eps=eps,
+                   verbose=verbose.inner)
     converged.inner <- attr(psi,"converged")
 
     psi.trace[,iter] <- psi
 
     ### E-step:
     cpl_data <- mk_cpl_data(psi,prev.data=NULL,...)
-    weights.i <- cpl_data$weights.i # These should be frequency weights or such for each set of indiv obs
     i <- cpl_data$i  # indicates independent observations
 
     ll.ih <- ll_cpl(psi,cpl_data,...)
@@ -175,22 +164,11 @@ EMfit <- function(
 
     last.logLik <- logLik
 
-    gradient <- attr(ll.ih,"gradient")
-    if(!length(gradient)){
-      Jcb.ih <- attr(ll.ih,"Jacobian")
-      gradient <- colSums(Jcb.ih)
-    }
-
-    cplInfo <- attr(ll.ih,"cplInfo")
-    missInfo <- attr(ll.ih,"missInfo")
-    if(!length(missInfo)){
-      Jcb.ih <- attr(ll.ih,"Jacobian")
-      if(!length(Jcb.ih)) stop("need either missing information or Jacobian")
-      grad.i <- rowsum(PPr.ih,i)
-      missInfo <- crossprod(Jcb.ih/wPPr,Jcb.ih) - crossprod(grad.i/weights.i,grad.i)
-      # Gradients and Jacobians are already weighted, we
-      # need to compensate
-    }
+    cplInfo <- completeInfo(psi,cpl_data,weights=wPPr,...)
+    Jcb <- Jacobian(psi,cpl_data,...)
+    rowsum.Jcb.i <- rowsum(wPPr*Jcb,attr(Jcb,"i"))
+    missInfo <- crossprod(Jcb,wPPr*Jcb) - crossprod(rowsum.Jcb.i)
+    gradient <- colSums(rowsum.Jcb.i)
 
     obsInfo <- cplInfo - missInfo
 
@@ -267,23 +245,30 @@ EMfit <- function(
 #'
 #' @param psi A numeric vector with starting values
 #' @param cpl_data A data structure with complete data
-#' @param wPPr A vector with (weighted) posterior probabilities
+#' @param weights A vector with weights e.g. posterior probabilities
 #' @param ll_cpl  A function that computes the complete-data log-likelihood
-#' @param ... Other argumets, passed on to \code{ll_cpl}
+#' @param completeInfo A function that computes the 'complete-data' information matrix
+#' @param Jacobian A function that computes the Jacobian of the log-likelihood function
+#' @param ... Other argumets, passed on to \code{ll_cpl}, etc.
 #' @param maxiter Maximal number of iterations
 #' @param eps Numeric; a criterion for convergence
 #' @param verbose Logical; should an interation trace be displayed?
 #'
 #' @return A paremeter value that maximizes the Q-function
-Mstep.default <- function(psi,cpl_data,wPPr,ll_cpl,...,maxiter=25,eps=1e-7,
-                               verbose=FALSE){
+Mstep.default <- function(psi,cpl_data,weights,
+                          ll_cpl,
+                          completeInfo,
+                          Jacobian,
+                          ...,
+                          maxiter=25,eps=1e-7,
+                          verbose=FALSE){
 
 
   last.psi <- psi
   converged <- FALSE
   ll.ih <- ll_cpl(psi,cpl_data,...)
-  Q <- wPPr*ll.ih
-  Q[wPPr==0]<-0
+  Q <- weights*ll.ih
+  Q[weights==0]<-0
   Q <- sum(Q)
 
   for(iter in 1:maxiter){
@@ -293,14 +278,10 @@ Mstep.default <- function(psi,cpl_data,wPPr,ll_cpl,...,maxiter=25,eps=1e-7,
 
     last.Q <- Q
 
-    gradient <- attr(ll.ih,"gradient")
-    if(!length(gradient)){
-      Jcb.ih <- attr(ll.ih,"Jacobian")
-      gradient <- colSums(Jcb.ih)
-    }
-
-    cplInfo <- attr(ll.ih,"cplInfo")
-
+    cplInfo <- completeInfo(psi,cpl_data,weights=weights,...)
+    Jcb <- Jacobian(psi,cpl_data,...)
+    gradient <- crossprod(Jcb,weights)
+    
     psi <- c(psi + solve(cplInfo,gradient))
 
     ll.ih <- ll_cpl(psi,cpl_data,...)
