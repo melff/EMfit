@@ -3,9 +3,9 @@
 #' @description \code{EMfit} provides the boilerplate for EM algorithms and EM-NR accelerated EM algorithms (also known as the Louis-method of acceleration)
 #'
 #' @param psi.start A numeric vector with starting values
-#' @param a vector of observation weights
 #' @param mk_cpl_data A function that creates the 'complete data' from the 'observed' data. Its return value
 #'        can be anything that can be used by the other functions given as arguments.
+#'        The return value can also have a component "weights".
 #' @param ll_cpl A function that computes the complete-data contributions to the log-likelihood.
 #'        It should at least accept the arguments \code{psi}, the parameter vector, and 
 #'        \code{cpl_data}, the complete-data structure.
@@ -45,7 +45,6 @@
 #'   
 EMfit <- function(
   psi.start,
-  weights,
   mk_cpl_data,
   ll_cpl,
   completeInfo,
@@ -65,6 +64,7 @@ EMfit <- function(
   psi <- psi.start
 
   cpl_data <- mk_cpl_data(psi,prev.data=NULL,...)
+  weights <- cpl_data$weights
 
   ll.ih <- ll_cpl(psi,cpl_data,...)
   i <- attr(ll_ih,"i")
@@ -72,11 +72,15 @@ EMfit <- function(
   LL.ih <- exp(ll.ih)
   LL.i <- rowsum(LL.ih,i)
   PPr.ih <- LL.ih/LL.i[i]
+  
+  if(!length(weights))
+    weights <- rep(1,length(LL.i))
+  
   logLik <- sum(weights*log(LL.i))
   if(verbose){
     cat("\nInitial log-likelihood:",logLik)
   }
-  wPPr <- weights.i[i]*PPr.ih
+  wPPr <- weights[i]*PPr.ih
 
   psi.trace <- matrix(nrow=length(psi),ncol=maxiter+1)
   psi.trace[,1] <- psi
@@ -112,16 +116,20 @@ EMfit <- function(
 
     ### E-step:
     cpl_data <- mk_cpl_data(psi,prev.data=NULL,...)
-    i <- cpl_data$i  # indicates independent observations
+    weights <- cpl_data$weights
 
     ll.ih <- ll_cpl(psi,cpl_data,...)
+    i <- attr(ll_ih,"i")
     LL.ih <- exp(ll.ih)
     LL.i <- rowsum(LL.ih,i)
     PPr.ih <- LL.ih/LL.i[i]
-    stopifnot(length(weights.i)==length(LL.i))
-    logLik <- sum(weights.i*log(LL.i))
+    
+    if(!length(weights))
+      weights <- rep(1,length(LL.i))
+    
+    logLik <- sum(weights*log(LL.i))
     logLik.trace[iter] <- logLik
-    wPPr <- weights.i[i]*PPr.ih
+    wPPr <- weights[i]*PPr.ih
 
     ### Check convergence:
     crit <- abs((logLik - last.logLik)/last.logLik)
@@ -184,16 +192,20 @@ EMfit <- function(
     }
 
     cpl_data <- mk_cpl_data(psi,prev.data=NULL,...)
-    weights.i <- cpl_data$weights.i # These should be frequency weights or such for each set of indiv obs
-    i <- cpl_data$i  # indicates independent observations
+    weights <- cpl_data$weights
 
     ll.ih <- ll_cpl(psi,cpl_data,...)
+    i <- attr(ll_ih,"i")
     LL.ih <- exp(ll.ih)
     LL.i <- rowsum(LL.ih,i)
     PPr.ih <- LL.ih/LL.i[i]
-    logLik <- sum(weights.i*log(LL.i))
+    
+    if(!length(weights))
+      weights <- rep(1,length(LL.i))
+    
+    logLik <- sum(weights*log(LL.i))
     logLik.trace[iter] <- logLik
-    wPPr <- weights.i[i]*PPr.ih
+    wPPr <- weights[i]*PPr.ih
 
     psi.trace[,iter] <- psi
     crit <- (logLik - last.logLik)/abs(last.logLik)
@@ -255,7 +267,8 @@ EMfit <- function(
 #' @param verbose Logical; should an interation trace be displayed?
 #'
 #' @return A paremeter value that maximizes the Q-function
-Mstep.default <- function(psi,cpl_data,weights,
+Mstep.default <- function(psi,cpl_data,
+                          weights,
                           ll_cpl,
                           completeInfo,
                           Jacobian,
