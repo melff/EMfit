@@ -1,8 +1,8 @@
 Package: EMfit
 Type: Package
 Title: An Infrastructure for Latent Variable Model Fitting using EM Algorithms
-Version: 0.1
-Date: 2013-10-13
+Version: 0.2
+Date: 2015-07-14
 Author: Martin Elff
 Maintainer: Martin Elff <elff@gmx.com>
 Description: The package contains the boilerplate code for estimating latent variable
@@ -12,3 +12,4 @@ Description: The package contains the boilerplate code for estimating latent var
    using Monte Carlo EM algorithms. Only importance sampling is supported for MCEM. However,
    it implements automatic sample size adjustment using the approach of Caffo Jank and Jones.
 License: GPL
+Suggests: roxygen2

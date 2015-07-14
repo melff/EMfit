@@ -1,3 +1,2 @@
 #exportPattern("^[^\\.]")
-export(EMfit,
-       MCEMfit)
+export(EMfit)
