@@ -26,6 +26,42 @@
 #'  \item{psi.trace}{A matrix which contains the parameter values for each iteration}
 #'  \item{logLik.trace}{A vector with the log-likelihood values of each iteration}
 #'   
+#' @details 
+#'    The argument \code{ll_cpl} is expected to be a function that returns a vector of 
+#'    log-likelihood values for each observation that is conditionally independent given the
+#'    unobserved data. It is expected to have two mandatory arguments
+#'    \itemize{
+#'      \item \code{"psi"} the current value of the parameter vector,
+#'      \item \code{"cpl_data"} a data structure containing the complete data, returned by \code{mk_cpl_data} (see below).
+#'    }
+#'    
+#'    Th return value is expected to have the following mandatory
+#'    attributes:
+#'    \itemize{
+#'      \item \code{"Jacobian"} the Jacobian matrix, i.e. the matrix of first partial derivatives
+#'      of the vector of log-likelihood values for the parameter vector,
+#'      \item \code{"cplInfo"} the complete-data information matrix (computed over all complete-data observations).
+#'    }
+#'    For computational efficiency, the return value may also have the following 
+#'    attributes
+#'    \itemize{
+#'      \item \code{"gradient"} the gradient of the complete-data log-likelihood function, computed over all
+#'      complete-data observations,
+#'      \item \code{"misInfo"} the missing-information matrix.
+#'    }
+#'    These attributes are optional. The gradient and missing-information matrix will be computed within
+#'    \code{EMfit}, if these attributes are not attached to the return value of \code{ll_cpl}.
+#'    
+#'    The argument \code{mk_cpl_data} may return any structure that \code{ll_cpl} understands (that is,
+#'    it depends on the coder of a particular implementation of a model using \code{EMfit}. The return value
+#'    will usually be a list, but it may any structure that permits the \code{$}-operator
+#'    (e.g. an \code{\link{environment}}). Two components, however,
+#'    are mandatory:
+#'    \itemize{
+#'      \item \code{"i"} an integer that identifies groups of complete-data observations 
+#'                     that correspond to a single observed-data observation.
+#'      \item \code{"weights.i"} a numeric vector of weights, usually frequency weights.
+#'    }
 EMfit <- function(
   psi.start,
   ll_cpl,
