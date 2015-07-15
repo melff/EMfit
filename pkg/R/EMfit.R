@@ -7,18 +7,19 @@
 #'        can be anything that can be used by the other functions given as arguments.
 #'        The return value can also have a component "weights".
 #' @param ll_cpl A function that computes the complete-data contributions to the log-likelihood.
-#'        It should at least accept the arguments \code{psi}, the parameter vector, and 
+#'        It should at least accept the arguments \code{psi}, the parameter vector, and
 #'        \code{cpl_data}, the complete-data structure.
 #'        It should return the complete-data contributions to the log-likelihood, with an attributed
 #'        named "i" that indicates unconditionally independent groups of observations.
 #' @param Mstep A function that conducts the M-step. It should accept the parameter vector as
-#'        first argument, the complete-data structure as second argument, a vector \code{weights},
+#'        first argument, the complete-data structure as second argument, a vector 
+#'        \code{wPPr} of posterior probabilities (weighted if applicable),
 #'        and should accept anything that is passed via \dots
 #' @param completeInfo A function that computes the 'complete-data' information matrix
-#'        It should at least accept the arguments \code{psi}, the parameter vector, 
-#'        \code{cpl_data}, the complete-data structure, and \code{weights}, which are 
+#'        It should at least accept the arguments \code{psi}, the parameter vector,
+#'        \code{cpl_data}, the complete-data structure, and \code{weights}, which are
 #'        weights determined e.g. by posterior probabilities and a-priori weights.
-#' @param Jacobian A function that computes the Jacobian of the log-likelihood function. 
+#' @param Jacobian A function that computes the Jacobian of the log-likelihood function.
 #'        It should return a matrix with the same number of rows as the length of the result
 #'        of \code{ll_cpl} and the same number of colums as elements of \code{psi}
 #'        and should have an attribute named "i" that indicates unconditionally independent groups of observations.
@@ -42,7 +43,7 @@
 #'  \item{converged}{A logical value, indicating whether the algorithm converged.}
 #'  \item{psi.trace}{A matrix which contains the parameter values for each iteration}
 #'  \item{logLik.trace}{A vector with the log-likelihood values of each iteration}
-#'   
+#'
 EMfit <- function(
   psi.start,
   mk_cpl_data,
@@ -67,15 +68,15 @@ EMfit <- function(
   weights <- cpl_data$weights
 
   ll.ih <- ll_cpl(psi,cpl_data,...)
-  i <- attr(ll_ih,"i")
-  
+  i <- attr(ll.ih,"i")
+
   LL.ih <- exp(ll.ih)
   LL.i <- rowsum(LL.ih,i)
   PPr.ih <- LL.ih/LL.i[i]
-  
+
   if(!length(weights))
     weights <- rep(1,length(LL.i))
-  
+
   logLik <- sum(weights*log(LL.i))
   if(verbose){
     cat("\nInitial log-likelihood:",logLik)
@@ -101,13 +102,14 @@ EMfit <- function(
 
     ### M-step:
     if(missing(Mstep))
-      psi <- Mstep.default(psi,cpl_data,wPPr,ll_cpl=ll_cpl,
+      psi <- Mstep.default(psi,cpl_data,wPPr,
+                           ll_cpl=ll_cpl,
                            Jacobian=Jacobian,
                            completeInfo=completeInfo,...,
                            maxiter=maxiter.innter,eps=eps,
                            verbose=verbose.inner)
     else
-      psi <- Mstep(psi,cpl_data,weights=wPPr,...,
+      psi <- Mstep(psi,cpl_data,wPPr=wPPr,...,
                    maxiter=maxiter.inner,eps=eps,
                    verbose=verbose.inner)
     converged.inner <- attr(psi,"converged")
@@ -119,14 +121,14 @@ EMfit <- function(
     weights <- cpl_data$weights
 
     ll.ih <- ll_cpl(psi,cpl_data,...)
-    i <- attr(ll_ih,"i")
+    i <- attr(ll.ih,"i")
     LL.ih <- exp(ll.ih)
     LL.i <- rowsum(LL.ih,i)
     PPr.ih <- LL.ih/LL.i[i]
-    
+
     if(!length(weights))
       weights <- rep(1,length(LL.i))
-    
+
     logLik <- sum(weights*log(LL.i))
     logLik.trace[iter] <- logLik
     wPPr <- weights[i]*PPr.ih
@@ -195,14 +197,14 @@ EMfit <- function(
     weights <- cpl_data$weights
 
     ll.ih <- ll_cpl(psi,cpl_data,...)
-    i <- attr(ll_ih,"i")
+    i <- attr(ll.ih,"i")
     LL.ih <- exp(ll.ih)
     LL.i <- rowsum(LL.ih,i)
     PPr.ih <- LL.ih/LL.i[i]
-    
+
     if(!length(weights))
       weights <- rep(1,length(LL.i))
-    
+
     logLik <- sum(weights*log(LL.i))
     logLik.trace[iter] <- logLik
     wPPr <- weights[i]*PPr.ih
@@ -251,13 +253,13 @@ EMfit <- function(
 }
 
 
-#' Default Maximizer for the M-Step 
-#' 
+#' Default Maximizer for the M-Step
+#'
 #' This function provides a standard Newton-Raphson maximizer of the complete data log-likelihood.
 #'
 #' @param psi A numeric vector with starting values
 #' @param cpl_data A data structure with complete data
-#' @param weights A vector with weights e.g. posterior probabilities
+#' @param wPPr A vector with (weighted) posterior probabilities
 #' @param ll_cpl  A function that computes the complete-data log-likelihood
 #' @param completeInfo A function that computes the 'complete-data' information matrix
 #' @param Jacobian A function that computes the Jacobian of the log-likelihood function
@@ -268,7 +270,7 @@ EMfit <- function(
 #'
 #' @return A paremeter value that maximizes the Q-function
 Mstep.default <- function(psi,cpl_data,
-                          weights,
+                          wPPr,
                           ll_cpl,
                           completeInfo,
                           Jacobian,
@@ -280,8 +282,8 @@ Mstep.default <- function(psi,cpl_data,
   last.psi <- psi
   converged <- FALSE
   ll.ih <- ll_cpl(psi,cpl_data,...)
-  Q <- weights*ll.ih
-  Q[weights==0]<-0
+  Q <- wPPr*ll.ih
+  Q[wPPr==0]<-0
   Q <- sum(Q)
 
   for(iter in 1:maxiter){
@@ -291,10 +293,10 @@ Mstep.default <- function(psi,cpl_data,
 
     last.Q <- Q
 
-    cplInfo <- completeInfo(psi,cpl_data,weights=weights,...)
+    cplInfo <- completeInfo(psi,cpl_data,weights=wPPr,...)
     Jcb <- Jacobian(psi,cpl_data,...)
-    gradient <- crossprod(Jcb,weights)
-    
+    gradient <- crossprod(Jcb,wPPr)
+
     psi <- c(psi + solve(cplInfo,gradient))
 
     ll.ih <- ll_cpl(psi,cpl_data,...)
