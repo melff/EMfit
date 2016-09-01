@@ -226,7 +226,7 @@ EMfit <- function(
       NR.converged <- TRUE
       if(verbose){
 
-        cat("\n... converged")
+        cat("\n... converged\n")
       }
       break
     }
@@ -320,7 +320,7 @@ Mstep.default <- function(psi,cpl_data,
     if(crit < eps) {
 
       if(verbose)
-        cat(" - converged")
+        cat(" - converged\n")
       converged <- TRUE
       break
     }
