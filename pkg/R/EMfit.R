@@ -143,7 +143,7 @@ EMfit <- function(
     }
     if(verbose){
 
-      cat("\n\tLog-likelihood: ",logLik," criterion: ",crit,sep="")
+      cat("\tLog-likelihood: ",logLik," criterion: ",crit,sep="")
     }
 
     if(crit < eps){
