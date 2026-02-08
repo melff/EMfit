@@ -143,7 +143,7 @@ EMfit <- function(
     }
     if(verbose){
 
-      cat("\tLog-likelihood: ",logLik," criterion: ",crit,sep="")
+        cat(" - Log-likelihood: ",logLik," criterion: ",crit,sep="")
     }
 
     if(crit < eps){
@@ -152,7 +152,7 @@ EMfit <- function(
 
       if(verbose && converged.inner){
 
-        cat(" - EM converged")
+          cat("\nEM converged")
       }
       break
     }
@@ -184,7 +184,7 @@ EMfit <- function(
 
     obsInfo.eigen <- eigen(obsInfo)
     last.psi <- psi
-    if(any(obsInfo.eigen$values <= 0)) {
+    if(any(obsInfo.eigen$values <= 1e-7)) {
       #print(obsInfo.eigen$values)
       warning("observed Information matrix not positive definite -- using complete-data Information")
       psi <- c(psi + solve(cplInfo,gradient))
@@ -213,7 +213,7 @@ EMfit <- function(
     crit <- (logLik - last.logLik)/abs(last.logLik)
     if(verbose){
       if(show.psi)cat(" - psi:",psi)
-      cat(" -\tLog-likelihood: ",logLik," criterion: ",crit,sep="")
+      cat(" - Log-likelihood: ",logLik," criterion: ",crit,sep="")
     }
     if(!is.finite(crit)){
       warning("Non-finite log-likelihood - stepping back and bailing out ...")
@@ -226,7 +226,7 @@ EMfit <- function(
       NR.converged <- TRUE
       if(verbose){
 
-        cat("\n... converged\n")
+          cat("\nConverged\n")
       }
       break
     }
@@ -320,7 +320,7 @@ Mstep.default <- function(psi,cpl_data,
     if(crit < eps) {
 
       if(verbose)
-        cat(" - converged\n")
+        cat(" - converged")
       converged <- TRUE
       break
     }
