@@ -1,10 +1,10 @@
 Package: EMfit
 Type: Package
 Title: An Infrastructure for Latent Variable Model Fitting using EM Algorithms
-Version: 0.2
-Date: 2015-07-14
+Version: 0.2.1
+Date: 2022-09-02
 Author: Martin Elff
-Maintainer: Martin Elff <elff@gmx.com>
+Maintainer: Martin Elff <martin@elff.eu>
 Description: The package contains the boilerplate code for estimating latent variable
    models by maximum marginal likelihood using EM algorithms. The code is generic and thus
    not optimised for particular models. The package supports fitting latent class or finite
